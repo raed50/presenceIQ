@@ -1,11 +1,11 @@
 const CONFIG = {
   webhooks: {
-    entree: 'https://mourad111-n8n.hf.space/webhook/pointage-entree',
-    sortie: 'https://mourad111-n8n.hf.space/webhook/pointage-sortie',
-    bioRegister: 'https://mourad111-n8n.hf.space/webhook/bio-register',
-    bioSave: 'https://mourad111-n8n.hf.space/webhook/bio-save',
-    bioChallenge: 'https://mourad111-n8n.hf.space/webhook/bio-challenge',
-    bioVerify: 'https://mourad111-n8n.hf.space/webhook/bio-verify'
+    entree: window.ENV?.WEBHOOK_ENTREE || '',
+    sortie: window.ENV?.WEBHOOK_SORTIE || '',
+    bioRegister: window.ENV?.BIO_REGISTER || '',
+    bioSave: window.ENV?.BIO_SAVE || '',
+    bioChallenge: window.ENV?.BIO_CHALLENGE || '',
+    bioVerify: window.ENV?.BIO_VERIFY || ''
   },
   validation: {
     idMinLen: 2,

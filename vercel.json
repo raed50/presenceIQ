@@ -1,0 +1,8 @@
+{
+  "buildCommand": "node build.js",
+  "outputDirectory": ".",
+  "framework": null,
+  "rewrites": [
+    { "source": "/env-config.js", "destination": "/public/env-config.js" }
+  ]
+}

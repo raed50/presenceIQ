@@ -11,3 +11,7 @@ node_modules/
 
 # Logs
 *.log
+
+# Vercel
+public/env-config.js
+.vercel/
