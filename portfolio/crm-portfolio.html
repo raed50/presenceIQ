@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM Automation — n8n Workflow</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #020617;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(30, 41, 59, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 41, 59, 0.3) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: -1;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+      border-bottom: 1px solid #1e293b;
+    }
+    .hero .badge {
+      display: inline-block;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid #34d399;
+      color: #34d399;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #22d3ee, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 18px;
+      color: #94a3b8;
+      max-width: 640px;
+      margin: 0 auto 30px;
+    }
+    .hero .tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    .hero .tags span {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    section { padding: 60px 0; }
+    section h2 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #f1f5f9;
+    }
+    section .subtitle {
+      color: #64748b;
+      margin-bottom: 40px;
+      font-size: 15px;
+    }
+
+    .diagram-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 40px;
+      overflow-x: auto;
+    }
+    .diagram-card svg { display: block; margin: 0 auto; }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .step-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 24px;
+      transition: border-color 0.2s;
+    }
+    .step-card:hover { border-color: #334155; }
+    .step-card .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .step-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #f1f5f9; }
+    .step-card p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+    .step-card .code-snip {
+      margin-top: 12px;
+      background: #020617;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #34d399;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .num-cyan { background: rgba(34, 211, 238, 0.15); color: #22d3ee; }
+    .num-green { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .num-purple { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
+    .num-amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .num-rose { background: rgba(251, 113, 133, 0.15); color: #fb7185; }
+    .num-orange { background: rgba(251, 146, 60, 0.15); color: #fb923c; }
+    .num-sky { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+
+    .scoring-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #0f172a;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+    }
+    .scoring-table th {
+      background: #1e293b;
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+    }
+    .scoring-table td {
+      padding: 14px 18px;
+      font-size: 14px;
+      border-top: 1px solid #1e293b;
+      color: #cbd5e1;
+    }
+    .scoring-table tr:hover td { background: #1a2332; }
+    .scoring-table .pts {
+      font-family: 'JetBrains Mono', monospace;
+      color: #34d399;
+      font-weight: 600;
+    }
+
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .quality-card {
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .quality-card h3 { font-size: 28px; margin-bottom: 6px; }
+    .quality-card .label { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .quality-card .desc { font-size: 13px; opacity: 0.8; }
+    .qc-hot { background: rgba(251, 113, 133, 0.12); border: 1px solid #fb7185; }
+    .qc-hot h3, .qc-hot .label { color: #fb7185; }
+    .qc-warm { background: rgba(251, 191, 36, 0.12); border: 1px solid #fbbf24; }
+    .qc-warm h3, .qc-warm .label { color: #fbbf24; }
+    .qc-cold { background: rgba(148, 163, 184, 0.12); border: 1px solid #64748b; }
+    .qc-cold h3, .qc-cold .label { color: #94a3b8; }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .benefit-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .benefit-card .icon { font-size: 28px; margin-bottom: 10px; }
+    .benefit-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .benefit-card p { font-size: 14px; color: #94a3b8; }
+
+    footer {
+      border-top: 1px solid #1e293b;
+      padding: 30px 0;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .quality-grid { grid-template-columns: 1fr; }
+      .steps-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════ HERO ══════ -->
+  <div class="hero">
+    <div class="container">
+      <div class="badge">⚡ Projet Devti</div>
+      <h1>CRM &amp; Gestion Commerciale<br/>Automatisée</h1>
+      <p>
+        Un pipeline commercial 100% automatisé — capture, scoring, notification<br/>
+        et relance des leads, propulsé par <strong>n8n</strong>, <strong>Google Sheets</strong> et <strong>Gmail</strong>.
+      </p>
+      <div class="tags">
+        <span>n8n</span>
+        <span>Google Sheets</span>
+        <span>Gmail</span>
+        <span>Webhook</span>
+        <span>No-Code</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ WORKFLOW DIAGRAM — VERSION REDESSINÉE ══════ -->
+  <section>
+    <div class="container">
+      <h2>📋 Architecture du Workflow</h2>
+      <p class="subtitle">12 nœuds connectés pour une automatisation complète du cycle de vente</p>
+      <div class="diagram-card" style="padding: 12px; text-align: center;">
+        <img src="workflow-crm.jpg" alt="Capture d'écran du workflow CRM n8n" style="max-width: 100%; height: auto; border-radius: 8px; display: block;" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ ÉTAPES ══════ -->
+  <section>
+    <div class="container">
+      <h2>🔬 Fonctionnement détaillé</h2>
+      <p class="subtitle">Chaque étape du pipeline expliquée simplement</p>
+      <div class="steps-grid">
+
+        <div class="step-card">
+          <div class="step-num num-cyan">1</div>
+          <h3>📩 Capture du lead</h3>
+          <p>Un webhook POST reçoit les données du formulaire (nom, email, téléphone, source, produit). L'URL est accessible depuis n'importe quelle application.</p>
+          <div class="code-snip">POST /webhook/crm-lead</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num num-purple">2</div>
+          <h3>🧮 Scoring automatique</h3>
+          <p>Un code node évalue le lead selon 9 critères (email, téléphone, source, produit…). Chaque critère donne des points. Score total sur 100.</p>
+          <div class="code-snip">const qualite = score &gt;= 30 ? 'Chaud' : 'Froid';</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num num-amber">3</div>
+          <h3>🔀 Aiguillage Chaud / Froid</h3>
+          <p>Un IF node sépare les leads : <strong>CHAUD</strong> (score ≥30) envoie une alerte Gmail immédiate, <strong>FROID</strong> démarre une séquence d'emails.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num num-green">4</div>
+          <h3>📊 Sauvegarde Google Sheets</h3>
+          <p>Tous les leads sont automatiquement enregistrés dans un Google Sheet avec 11 colonnes : nom, prénom, email, score, qualité, statut, date…</p>
+          <div class="code-snip">Google Sheets → Append Row</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num num-orange">5</div>
+          <h3>📧 Alerte Gmail temps réel</h3>
+          <p>Les leads chauds envoient une notification instantanée par Gmail à l'équipe commerciale avec tous les détails. Réaction en quelques minutes.</p>
+          <div class="code-snip">🔥 NOUVEAU LEAD CHAUD !</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num num-sky">6</div>
+          <h3>📧 Email + 4 relances auto</h3>
+          <p>Les leads froids reçoivent un email de bienvenue puis une séquence de 4 relances espacées (J+3, J+8, J+15, J+25). Nurturing complet sans effort.</p>
+          <div class="code-snip">4 étapes × 25 jours max</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ SCORING ══════ -->
+  <section>
+    <div class="container">
+      <h2>📊 Barème de Scoring</h2>
+      <p class="subtitle">9 critères pour qualifier chaque lead automatiquement</p>
+      <table class="scoring-table">
+        <thead>
+          <tr><th>Critère</th><th>Points</th><th>Impact</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>📍 Email fourni</td><td class="pts">+10</td><td>Contact direct possible</td></tr>
+          <tr><td>📞 Téléphone fourni</td><td class="pts">+15</td><td>Contact fort (WhatsApp, appel)</td></tr>
+          <tr><td>👤 Nom + Prénom</td><td class="pts">+5</td><td>Lead sérieux, pas anonyme</td></tr>
+          <tr><td>🎯 Produit intéressé</td><td class="pts">+10</td><td>Il sait ce qu'il veut</td></tr>
+          <tr><td>🤝 Source : Recommandation</td><td class="pts">+20</td><td>Confiance déjà établie</td></tr>
+          <tr><td>🔗 Source : LinkedIn</td><td class="pts">+8</td><td>Prospect qualifié</td></tr>
+          <tr><td>🌐 Source : Site Web</td><td class="pts">+5</td><td>Intérêt spontané</td></tr>
+          <tr><td>💰 Montant &gt; 10 000 DH</td><td class="pts">+15</td><td>Gros client potentiel</td></tr>
+          <tr><td>⭐ Pack Pro / Premium</td><td class="pts">+10</td><td>Client haut de gamme</td></tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 40px;">
+        <div class="quality-grid">
+          <div class="quality-card qc-hot">
+            <h3>🔥</h3>
+            <div class="label">Chaud</div>
+            <div class="desc">Score ≥ 30<br/>Alerte Gmail immédiate</div>
+          </div>
+          <div class="quality-card qc-warm">
+            <h3>🟡</h3>
+            <div class="label">Tiède</div>
+            <div class="desc">Score 15 – 29<br/>Email + séquence relance</div>
+          </div>
+          <div class="quality-card qc-cold">
+            <h3>❄️</h3>
+            <div class="label">Froid</div>
+            <div class="desc">Score &lt; 15<br/>Nurturing long terme</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ AVANTAGES ══════ -->
+  <section>
+    <div class="container">
+      <h2>✅ Avantages</h2>
+      <p class="subtitle">Pourquoi cette solution change la donne</p>
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <div class="icon">⏱️</div>
+          <h3>Réactivité immédiate</h3>
+          <p>Alerte Gmail en temps réel dès qu'un lead chaud arrive. Réponse en minutes, pas en jours.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon">📊</div>
+          <h3>Visibilité totale</h3>
+          <p>Tous les leads dans Google Sheets. Suivi complet : source, score, statut, historique des relances.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon">🤖</div>
+          <h3>Zéro travail manuel</h3>
+          <p>Plus besoin de relancer chaque client. Le workflow fait tout : scoring, aiguillage, email, relances.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon">💰</div>
+          <h3>ROI mesurable</h3>
+          <p>Taux de conversion, origine des leads, scoring → tu sais exactement ce qui fonctionne.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon">📈</div>
+          <h3>Pipeline fluide</h3>
+          <p>Les leads chauds sont traités en priorité, les froids sont nurturés automatiquement. Plus de pertes.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon">🛠️</div>
+          <h3>100% No-Code</h3>
+          <p>n8n + Google Sheets + Gmail. Pas de serveur, pas de base de données, pas de code à déployer.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ TECH STACK ══════ -->
+  <section>
+    <div class="container">
+      <h2>🛠️ Stack Technique</h2>
+      <p class="subtitle">Une stack légère, puissante et sans abonnement coûteux</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">
+            <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#22d3ee" stroke-width="2"/><text x="22" y="28" text-anchor="middle" fill="#22d3ee" font-size="15" font-family="Inter" font-weight="700">n8n</text></svg>
+          </div>
+          <h3 style="font-size:15px;font-weight:600;color:#f1f5f9;">n8n</h3>
+          <p style="font-size:12px;color:#64748b;">Orchestrateur workflow</p>
+        </div>
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">📊</div>
+          <h3 style="font-size:15px;font-weight:600;color:#f1f5f9;">Google Sheets</h3>
+          <p style="font-size:12px;color:#64748b;">Base de données CRM</p>
+        </div>
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">📧</div>
+          <h3 style="font-size:15px;font-weight:600;color:#f1f5f9;">Gmail</h3>
+          <p style="font-size:12px;color:#64748b;">Alertes + Emails automatiques</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ FOOTER ══════ -->
+  <footer>
+    <div class="container">
+      Projet Devti — CRM &amp; Gestion Commerciale Automatisée<br/>
+      Construit avec n8n · Google Sheets · Gmail
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,278 @@
+{
+  "name": "PresenceIQ — Vérification Biométrique",
+  "nodes": [
+    {
+      "id": "webhook-challenge",
+      "name": "🔐 bio-challenge",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "parameters": {
+        "path": "bio-challenge",
+        "responseMode": "responseNode",
+        "options": {},
+        "httpMethod": "POST",
+        "responseData": "allEntries",
+        "responseBinary": false
+      }
+    },
+    {
+      "id": "gsheets-lookup",
+      "name": "📊 Google Sheets — Chercher",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [250, 200],
+      "parameters": {
+        "operation": "get",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Biometrics",
+          "mode": "list"
+        },
+        "dataMode": "nothing",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-challenge-response",
+      "name": "🎲 Challenge + Credential",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 200],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\nconst employeeId = $json.body.employeeId;\n\n// Chercher la ligne correspondante dans Google Sheets\n// $json contient toutes les lignes du sheet\nconst rows = $json;\nlet found = null;\n\n// Format attendu: [employeeId, credentialId, publicKey, transports, createdAt]\nfor (const row of rows) {\n  // row est un tableau si dataMode=nothing\n  if (Array.isArray(row) && row[0] === employeeId) {\n    found = {\n      employeeId: row[0],\n      credentialId: row[1],\n      publicKey: row[2],\n      transports: row[3]\n    };\n    break;\n  }\n  // row est un objet si structured data\n  if (row && typeof row === 'object' && (row.employeeId === employeeId || row[0] === employeeId)) {\n    found = {\n      employeeId: row.employeeId || row[0],\n      credentialId: row.credentialId || row[1],\n      publicKey: row.publicKey || row[2],\n      transports: row.transports || row[3]\n    };\n    break;\n  }\n}\n\nif (!found) {\n  return {\n    success: false,\n    error: \"Aucune clé biométrique trouvée pour cet employé. Enregistrez d'abord votre visage.\"\n  };\n}\n\n// Générer un nouveau challenge (32 bytes)\nconst challenge = crypto.randomBytes(32).toString('base64url');\n\nreturn {\n  success: true,\n  challenge: challenge,\n  credentialId: found.credentialId,\n  publicKey: found.publicKey,\n  transports: found.transports ? JSON.parse(found.transports) : ['internal'],\n  rpId: $json.body.rpId || 'localhost',\n  employeeId: employeeId\n};"
+      }
+    },
+    {
+      "id": "respond-challenge",
+      "name": "✅ Réponse challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [750, 200],
+      "parameters": {
+        "respondWith": "json",
+        "responseBodyType": "code",
+        "responseBody": "={{ $json }}"
+      },
+      "webhookId": "webhook-challenge"
+    },
+    {
+      "id": "webhook-verify",
+      "name": "🔐 bio-verify",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 600],
+      "parameters": {
+        "path": "bio-verify",
+        "responseMode": "responseNode",
+        "options": {},
+        "httpMethod": "POST",
+        "responseData": "allEntries",
+        "responseBinary": false
+      }
+    },
+    {
+      "id": "gsheets-verify-lookup",
+      "name": "📊 GS — Chercher clé",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [250, 600],
+      "parameters": {
+        "operation": "get",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Biometrics",
+          "mode": "list"
+        },
+        "dataMode": "nothing",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-verify",
+      "name": "✅ Vérifier Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 600],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\nconst body = $json.body;\n\n// --- Extraire les données ---\nconst challenge = body.challenge;\nconst credentialId = body.credentialId;\nconst clientDataJSON = body.clientDataJSON;  // base64url\nconst authenticatorData = body.authenticatorData;  // base64url\nconst signature = body.signature;  // base64url\nconst employeeId = body.employeeId;\n\n// --- Récupérer la clé publique depuis le résultat GS ---\n// Le résultat Google Sheets est dans $node[\"📊 GS — Chercher clé\"].data\nconst gsResult = $node[\"📊 GS — Chercher clé\"].data;\n\nlet publicKeyB64 = null;\nlet storedTransports = '[]';\n\n// Parcourir les lignes pour trouver la bonne\nfor (const item of (Array.isArray(gsResult) ? gsResult : [gsResult])) {\n  if (Array.isArray(item)) {\n    if (item[1] === credentialId) {\n      publicKeyB64 = item[2];\n      storedTransports = item[3] || '[]';\n      break;\n    }\n  } else if (item && typeof item === 'object') {\n    if ((item.credentialId || item[1]) === credentialId) {\n      publicKeyB64 = item.publicKey || item[2];\n      storedTransports = item.transports || item[3] || '[]';\n      break;\n    }\n  }\n}\n\nif (!publicKeyB64) {\n  return { success: false, error: 'Clé publique introuvable pour ce credential' };\n}\n\n// --- Décoder la clé publique COSE en JWK ---\n// Format stocké: COSE_Key bytes encodés en base64url\nconst coseBuffer = Buffer.from(publicKeyB64, 'base64url');\n\n// Parser COSE EC2 key\n// Structure: [tag] [1:kty] [3:alg] [-1:crv] [-2:x] [-3:y]\n// Pour ES256 (P-256):\n//   kty = 2 (EC2)\n//   alg = -7 (ES256)\n//   crv = 1 (P-256)\n//   x = 32 bytes\n//   y = 32 bytes\n// Format CBOR map\n\nfunction parseCOSEKey(buffer) {\n  // CBOR decoder minimal pour COSE EC2\n  // Format attendu: map de 5 paires\n  let offset = 0;\n  \n  // Lire le premier byte pour déterminer le type\n  const firstByte = buffer[offset];\n  \n  // CBOR map: 0xA5 = map(5), 0xA4 = map(4)\n  if ((firstByte & 0xE0) !== 0xA0) {\n    throw new Error('Expected CBOR map at start, got: 0x' + firstByte.toString(16));\n  }\n  \n  const mapLen = firstByte & 0x1F;\n  offset++;\n  \n  const map = {};\n  for (let i = 0; i < mapLen; i++) {\n    // Lire la clé\n    const keyType = buffer[offset] & 0xE0;\n    let key;\n    if ((buffer[offset] & 0xE0) === 0x20) {\n      // Negative integer\n      key = -((buffer[offset] & 0x1F) + 1);\n      offset++;\n    } else if ((buffer[offset] & 0xE0) === 0x00) {\n      // Unsigned integer\n      key = buffer[offset] & 0x1F;\n      offset++;\n    } else {\n      throw new Error('Unexpected key type at offset ' + offset);\n    }\n    \n    // Lire la valeur\n    if (key < 0) {\n      // Negative keys are byte strings\n      if (buffer[offset] === 0x58) {\n        // byte string avec longueur 1-byte\n        const len = buffer[offset + 1];\n        map[key] = buffer.slice(offset + 2, offset + 2 + len);\n        offset += 2 + len;\n      } else if ((buffer[offset] & 0xE0) === 0x40) {\n        // byte string simple\n        const len = buffer[offset] & 0x1F;\n        map[key] = buffer.slice(offset + 1, offset + 1 + len);\n        offset += 1 + len;\n      } else if (buffer[offset] === 0x59) {\n        // byte string avec longueur 2-bytes\n        const len = buffer.readUInt16BE(offset + 1);\n        map[key] = buffer.slice(offset + 3, offset + 3 + len);\n        offset += 3 + len;\n      } else {\n        throw new Error('Unexpected value type for key ' + key + ' at offset ' + offset);\n      }\n    } else {\n      // Positive keys are integers\n      if ((buffer[offset] & 0xE0) === 0x00) {\n        map[key] = buffer[offset] & 0x1F;\n        offset++;\n      } else if (buffer[offset] === 0x18) {\n        map[key] = buffer[offset + 1];\n        offset += 2;\n      } else if (buffer[offset] === 0x19) {\n        map[key] = buffer.readUInt16BE(offset + 1);\n        offset += 3;\n      } else if (buffer[offset] === 0x1A) {\n        map[key] = buffer.readUInt32BE(offset + 1);\n        offset += 5;\n      } else if (buffer[offset] === 0x20) {\n        // negative int simple\n        map[key] = -(buffer[offset] & 0x1F) - 1;\n        offset++;\n      } else if (buffer[offset] === 0x38) {\n        map[key] = -(buffer[offset + 1]) - 1;\n        offset += 2;\n      } else {\n        throw new Error('Unexpected value type for key ' + key + ' at offset ' + offset);\n      }\n    }\n  }\n  \n  return map;\n}\n\nlet coseKey;\ntry {\n  coseKey = parseCOSEKey(coseBuffer);\n} catch (e) {\n  // Fallback: si le format n'est pas CBOR, essayer de traiter comme du JSON\n  try {\n    coseKey = JSON.parse(publicKeyB64);\n  } catch (e2) {\n    return { success: false, error: 'Format de clé invalide: ' + e.message };\n  }\n}\n\n// Extraire x et y\nconst xBytes = coseKey[-2];\nconst yBytes = coseKey[-3];\n\nif (!xBytes || !yBytes) {\n  return { success: false, error: 'Coordonnées de clé manquantes (x ou y)' };\n}\n\n// Convertir en JWK\nconst jwk = {\n  kty: 'EC',\n  crv: 'P-256',\n  x: Buffer.from(xBytes).toString('base64url'),\n  y: Buffer.from(yBytes).toString('base64url'),\n};\n\n// --- Importer la clé publique ---\nlet publicKey;\ntry {\n  publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });\n} catch (e) {\n  return { success: false, error: 'Erreur import clé: ' + e.message };\n}\n\n// --- Reconstruire les données signées ---\nconst authDataBuf = Buffer.from(authenticatorData, 'base64url');\nconst clientDataBuf = Buffer.from(clientDataJSON, 'base64url');\nconst clientDataHash = crypto.createHash('sha256').update(clientDataBuf).digest();\nconst signedData = Buffer.concat([authDataBuf, clientDataHash]);\n\n// --- Vérifier la signature ---\nconst sigBuf = Buffer.from(signature, 'base64url');\n\nlet verified;\ntry {\n  verified = crypto.verify(\n    undefined,  // utilise l'algorithme de la clé\n    signedData,\n    publicKey,\n    sigBuf\n  );\n} catch (e) {\n  return { success: false, error: 'Erreur vérification: ' + e.message };\n}\n\nif (!verified) {\n  return { success: false, error: '❌ Visage non reconnu' };\n}\n\n// ✅ Vérification réussie !\nreturn {\n  success: true,\n  verified: true,\n  employeeId: employeeId,\n  credentialId: credentialId,\n  message: '✅ Visage vérifié avec succès'\n};"
+      }
+    },
+    {
+      "id": "if-verified",
+      "name": "🔀 Si vérifié ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [750, 600],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equal" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "http-forward-entree",
+      "name": "➡️ Forward Entrée",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 550],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.pointageUrl || 'https://mourad111-n8n.hf.space/webhook/pointage-entree' }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "employeeId", "value": "={{ $json.employeeId }}" },
+            { "name": "nom", "value": "={{ $json.nom }}" },
+            { "name": "type", "value": "entree" },
+            { "name": "latitude", "value": "={{ $json.latitude }}" },
+            { "name": "longitude", "value": "={{ $json.longitude }}" },
+            { "name": "timestamp", "value": "={{ $json.timestamp }}" },
+            { "name": "biometricsVerified", "value": true },
+            { "name": "biometricsMethod", "value": "WebAuthn" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "http-forward-sortie",
+      "name": "➡️ Forward Sortie",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 700],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.pointageUrl || 'https://mourad111-n8n.hf.space/webhook/pointage-sortie' }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "employeeId", "value": "={{ $json.employeeId }}" },
+            { "name": "nom", "value": "={{ $json.nom }}" },
+            { "name": "type", "value": "sortie" },
+            { "name": "latitude", "value": "={{ $json.latitude }}" },
+            { "name": "longitude", "value": "={{ $json.longitude }}" },
+            { "name": "timestamp", "value": "={{ $json.timestamp }}" },
+            { "name": "heureEntreeStr", "value": "={{ $json.heureEntreeStr }}" },
+            { "name": "biometricsVerified", "value": true },
+            { "name": "biometricsMethod", "value": "WebAuthn" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "if-type-entree",
+      "name": "🔀 Type = Entrée ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 450],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "check-type",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "entree",
+              "operator": { "type": "string", "operation": "equal" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "code-verify-response",
+      "name": "📦 Réponse finale",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 600],
+      "parameters": {
+        "jsCode": "// Fusionner la réponse du forward avec la vérification\nconst verifyResult = $node[\"✅ Vérifier Signature\"].json;\nconst forwardResponse = $json;\n\nreturn {\n  success: true,\n  verified: true,\n  biometricsVerified: true,\n  employeeId: verifyResult.employeeId,\n  forwardResponse: forwardResponse,\n  message: '✅ Pointage + biométrie validés'\n};"
+      }
+    },
+    {
+      "id": "respond-verify",
+      "name": "✅ Réponse verify",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 600],
+      "parameters": {
+        "respondWith": "json",
+        "responseBodyType": "code",
+        "responseBody": "={{ $json }}"
+      },
+      "webhookId": "webhook-verify"
+    }
+  ],
+  "connections": {
+    "webhook-challenge": {
+      "main": [[ { "node": "gsheets-lookup", "type": "main", "index": 0 } ]]
+    },
+    "gsheets-lookup": {
+      "main": [[ { "node": "code-challenge-response", "type": "main", "index": 0 } ]]
+    },
+    "code-challenge-response": {
+      "main": [[ { "node": "respond-challenge", "type": "main", "index": 0 } ]]
+    },
+    "webhook-verify": {
+      "main": [[ { "node": "gsheets-verify-lookup", "type": "main", "index": 0 } ]]
+    },
+    "gsheets-verify-lookup": {
+      "main": [[ { "node": "code-verify", "type": "main", "index": 0 } ]]
+    },
+    "code-verify": {
+      "main": [[ { "node": "if-verified", "type": "main", "index": 0 } ]]
+    },
+    "if-verified": {
+      "main": [
+        [ { "node": "if-type-entree", "type": "main", "index": 0 } ],
+        [ { "node": "respond-verify", "type": "main", "index": 0 } ]
+      ]
+    },
+    "if-type-entree": {
+      "main": [
+        [ { "node": "http-forward-entree", "type": "main", "index": 0 } ],
+        [ { "node": "http-forward-sortie", "type": "main", "index": 0 } ]
+      ]
+    },
+    "http-forward-entree": {
+      "main": [[ { "node": "code-verify-response", "type": "main", "index": 0 } ]]
+    },
+    "http-forward-sortie": {
+      "main": [[ { "node": "code-verify-response", "type": "main", "index": 0 } ]]
+    },
+    "code-verify-response": {
+      "main": [[ { "node": "respond-verify", "type": "main", "index": 0 } ]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}

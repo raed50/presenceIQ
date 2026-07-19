@@ -1,0 +1,138 @@
+{
+  "name": "PresenceIQ — Enregistrement Biométrique",
+  "nodes": [
+    {
+      "id": "webhook-register",
+      "name": "🔐 bio-register",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "parameters": {
+        "path": "bio-register",
+        "responseMode": "responseNode",
+        "options": {},
+        "httpMethod": "POST",
+        "responseData": "allEntries",
+        "responseBinary": false
+      }
+    },
+    {
+      "id": "code-gen-challenge",
+      "name": "🎲 Générer Challenge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "jsCode": "// Challenge aléatoire côté serveur (32 bytes)\nconst crypto = require('crypto');\nconst challenge = crypto.randomBytes(32).toString('base64url');\n\n// Stocker temporairement pour validation au save\nconst employeeId = $json.body.employeeId;\n\n// Retourner le challenge\nreturn {\n  challenge: challenge,\n  rpId: window.location.hostname || 'localhost',\n  rpName: 'PresenceIQ',\n  userId: employeeId,\n  userName: employeeId,\n  userDisplayName: $json.body.nom || employeeId\n};"
+      }
+    },
+    {
+      "id": "respond-register",
+      "name": "✅ Réponse register",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBodyType": "code",
+        "responseBody": "={{ $json }}"
+      },
+      "webhookId": "webhook-register"
+    },
+    {
+      "id": "webhook-save",
+      "name": "💾 bio-save",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 700],
+      "parameters": {
+        "path": "bio-save",
+        "responseMode": "responseNode",
+        "options": {},
+        "httpMethod": "POST",
+        "responseData": "allEntries",
+        "responseBinary": false
+      }
+    },
+    {
+      "id": "gsheets-save",
+      "name": "📊 Google Sheets — Enregistrer",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [250, 700],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Biometrics",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "employeeId": "={{ $json.body.employeeId }}",
+            "credentialId": "={{ $json.body.credentialId }}",
+            "publicKey": "={{ $json.body.publicKey }}",
+            "transports": "={{ $json.body.transports }}",
+            "createdAt": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {
+          "cellFormat": "strings",
+          "handlingExtraData": "insertInNewColumn"
+        }
+      }
+    },
+    {
+      "id": "code-save-response",
+      "name": "✅ Préparer réponse save",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 700],
+      "parameters": {
+        "jsCode": "return {\n  success: true,\n  message: 'Clé biométrique enregistrée avec succès',\n  employeeId: $json.body.employeeId\n};"
+      }
+    },
+    {
+      "id": "respond-save",
+      "name": "✅ Réponse save",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [750, 700],
+      "parameters": {
+        "respondWith": "json",
+        "responseBodyType": "code",
+        "responseBody": "={{ $json }}"
+      },
+      "webhookId": "webhook-save"
+    }
+  ],
+  "connections": {
+    "webhook-register": {
+      "main": [[ { "node": "code-gen-challenge", "type": "main", "index": 0 } ]]
+    },
+    "code-gen-challenge": {
+      "main": [[ { "node": "respond-register", "type": "main", "index": 0 } ]]
+    },
+    "webhook-save": {
+      "main": [[ { "node": "gsheets-save", "type": "main", "index": 0 } ]]
+    },
+    "gsheets-save": {
+      "main": [[ { "node": "code-save-response", "type": "main", "index": 0 } ]]
+    },
+    "code-save-response": {
+      "main": [[ { "node": "respond-save", "type": "main", "index": 0 } ]]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}
