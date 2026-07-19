@@ -1,11 +1,11 @@
 const CONFIG = {
   webhooks: {
-    entree: window.ENV?.WEBHOOK_ENTREE || '',
-    sortie: window.ENV?.WEBHOOK_SORTIE || '',
-    bioRegister: window.ENV?.BIO_REGISTER || '',
-    bioSave: window.ENV?.BIO_SAVE || '',
-    bioChallenge: window.ENV?.BIO_CHALLENGE || '',
-    bioVerify: window.ENV?.BIO_VERIFY || ''
+    entree: '/api/proxy?webhook=pointage-entree',
+    sortie: '/api/proxy?webhook=pointage-sortie',
+    bioRegister: '/api/proxy?webhook=bio-register',
+    bioSave: '/api/proxy?webhook=bio-save',
+    bioChallenge: '/api/proxy?webhook=bio-challenge',
+    bioVerify: '/api/proxy?webhook=bio-verify'
   },
   validation: {
     idMinLen: 2,
