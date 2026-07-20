@@ -1,4 +1,17 @@
 // ===== BIOMÉTRIE (WebAuthn) =====
+
+// Helpers base64url (WebAuthn utilise base64url, pas base64 standard)
+function base64urlToBytes(str) {
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+  return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+}
+
+function bytesToBase64url(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 async function checkBioStatus() {
   const data = await apiCall(CONFIG.webhooks.bioChallenge, { employeeId: state.employeeId });
   state = { ...state, bioRegistered: data.success === true };
@@ -32,7 +45,8 @@ async function triggerBiometrics() {
     showLoading('Configuration du visage...', 'Connexion au serveur');
     const registerData = await apiCall(CONFIG.webhooks.bioRegister, {
       employeeId: state.employeeId,
-      nom: state.nom
+      nom: state.nom,
+      rpId: window.location.hostname
     });
     hideLoading();
 
@@ -43,13 +57,13 @@ async function triggerBiometrics() {
 
     showLoading('Scannez votre visage...', 'Enregistrement biométrique');
     try {
-      const challengeBytes = Uint8Array.from(atob(registerData.challenge), c => c.charCodeAt(0));
+      const challengeBytes = base64urlToBytes(registerData.challenge);
       const userIdBytes = Uint8Array.from(state.employeeId, c => c.charCodeAt(0));
 
       const cred = await navigator.credentials.create({
         publicKey: {
           challenge: challengeBytes,
-          rp: { name: registerData.rpName || "PresenceIQ" },
+          rp: { id: registerData.rpId || window.location.hostname, name: 'PresenceIQ' },
           user: {
             id: userIdBytes,
             name: state.employeeId,
@@ -64,8 +78,8 @@ async function triggerBiometrics() {
       });
       hideLoading();
 
-      const credentialId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-      const publicKeyCOSE = btoa(String.fromCharCode(...new Uint8Array(cred.response.getPublicKey())));
+      const credentialId = bytesToBase64url(cred.rawId);
+      const publicKeyCOSE = bytesToBase64url(cred.response.getPublicKey());
       const transports = cred.response.getTransports ? cred.response.getTransports() : ['internal'];
 
       const saveData = await apiCall(CONFIG.webhooks.bioSave, {
@@ -121,8 +135,8 @@ async function verifyBiometrics(pointageType) {
       return false;
     }
 
-    const challengeBytes = Uint8Array.from(atob(challengeData.challenge), c => c.charCodeAt(0));
-    const credIdBytes = Uint8Array.from(atob(challengeData.credentialId), c => c.charCodeAt(0));
+    const challengeBytes = base64urlToBytes(challengeData.challenge);
+    const credIdBytes = base64urlToBytes(challengeData.credentialId);
 
     const assertion = await navigator.credentials.get({
       publicKey: {
@@ -136,9 +150,9 @@ async function verifyBiometrics(pointageType) {
       }
     });
 
-    const clientDataJSON = btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON)));
-    const authenticatorData = btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData)));
-    const signature = btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature)));
+    const clientDataJSON = bytesToBase64url(assertion.response.clientDataJSON);
+    const authenticatorData = bytesToBase64url(assertion.response.authenticatorData);
+    const signature = bytesToBase64url(assertion.response.signature);
 
     hideLoading();
     showLoading('Vérification...', 'Validation de votre identité');

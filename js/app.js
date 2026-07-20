@@ -92,7 +92,7 @@ async function doLogin() {
   localStorage.setItem('piq_nom', nom);
   const bioToggle = document.getElementById('bio-toggle');
   const savedBio = localStorage.getItem('piq_bio_' + id);
-  bioToggle.checked = savedBio !== 'off';
+  bioToggle.checked = savedBio === 'on';
   bioToggle.addEventListener('change', () => {
     localStorage.setItem('piq_bio_' + state.employeeId, bioToggle.checked ? 'on' : 'off');
   });
@@ -102,9 +102,11 @@ async function doLogin() {
   startGPS();
   loadHistory();
 
-  showLoading('Vérification du statut...', 'Connexion au serveur');
-  await checkBioStatus();
-  hideLoading();
+  if (bioToggle.checked) {
+    showLoading('Vérification du statut...', 'Connexion au serveur');
+    await checkBioStatus();
+    hideLoading();
+  }
 }
 
 function doLogout() {
@@ -158,15 +160,17 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('topbar-avatar').textContent = nom.charAt(0).toUpperCase();
     const bioToggle = document.getElementById('bio-toggle');
     const savedBio = localStorage.getItem('piq_bio_' + id);
-    bioToggle.checked = savedBio !== 'off';
+    bioToggle.checked = savedBio === 'on';
     bioToggle.addEventListener('change', () => {
       localStorage.setItem('piq_bio_' + state.employeeId, bioToggle.checked ? 'on' : 'off');
     });
     showScreen('screen-main');
     startGPS();
     loadHistory();
-    showLoading('Vérification...', 'Connexion au serveur');
-    checkBioStatus().then(() => hideLoading());
+    if (bioToggle.checked) {
+      showLoading('Vérification...', 'Connexion au serveur');
+      checkBioStatus().then(() => hideLoading());
+    }
   }
 });
 
