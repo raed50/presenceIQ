@@ -2,10 +2,10 @@ const CONFIG = {
   webhooks: {
     entree: '/api/proxy?webhook=pointage-entree',
     sortie: '/api/proxy?webhook=pointage-sortie',
-    bioRegister: '/api/proxy?webhook=bio-register',
-    bioSave: '/api/proxy?webhook=bio-save',
-    bioChallenge: '/api/proxy?webhook=bio-challenge',
-    bioVerify: '/api/proxy?webhook=bio-verify'
+    bioRegister: '/api/bio/register',
+    bioSave: '/api/bio/save',
+    bioChallenge: '/api/bio/challenge',
+    bioVerify: '/api/bio/verify'
   },
   validation: {
     idMinLen: 2,
