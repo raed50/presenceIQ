@@ -111,6 +111,19 @@
     </div>
   </div>
 
+  <!-- Selfie Camera Modal -->
+  <div class="selfie-modal" id="selfie-modal">
+    <div class="selfie-box">
+      <div class="selfie-header">
+        <span id="selfie-status">Positionnez votre visage</span>
+        <button class="selfie-close" id="btn-selfie-close">✕</button>
+      </div>
+      <video id="selfie-video" autoplay playsinline muted></video>
+      <canvas id="selfie-canvas" style="display:none"></canvas>
+      <button class="btn-selfie-capture" id="btn-selfie-capture">📸 Capturer</button>
+    </div>
+  </div>
+
   <!-- Scripts (order matters: env first, then config, modules, app last) -->
   <script src="/env-config.js"></script>
   <script src="js/config.js"></script>

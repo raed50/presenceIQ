@@ -5,7 +5,9 @@ const CONFIG = {
     bioRegister: '/api/bio/register',
     bioSave: '/api/bio/save',
     bioChallenge: '/api/bio/challenge',
-    bioVerify: '/api/bio/verify'
+    bioVerify: '/api/bio/verify',
+    selfieSave: '/api/bio/selfie-save',
+    selfieVerify: '/api/bio/selfie-verify'
   },
   validation: {
     idMinLen: 2,
