@@ -3,7 +3,7 @@ let state = {
   gpsLat: null, gpsLng: null, gpsReady: false,
   hasEntree: false, hasSortie: false,
   heureEntreeStr: null, history: [],
-  bioRegistered: false
+  bioRegistered: false, bioMethod: null
 };
 
 // ===== API HELPERS =====
@@ -112,7 +112,7 @@ async function doLogin() {
 function doLogout() {
   localStorage.removeItem('piq_id');
   localStorage.removeItem('piq_nom');
-  state = { employeeId:'', nom:'', gpsLat:null, gpsLng:null, gpsReady:false, hasEntree:false, hasSortie:false, heureEntreeStr:null, history:[], bioRegistered:false };
+  state = { employeeId:'', nom:'', gpsLat:null, gpsLng:null, gpsReady:false, hasEntree:false, hasSortie:false, heureEntreeStr:null, history:[], bioRegistered:false, bioMethod:null };
   const list = document.getElementById('history-list');
   list.innerHTML = '';
   const empty = document.createElement('div');

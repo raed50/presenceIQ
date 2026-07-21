@@ -17,27 +17,39 @@ function isWebAuthnSupported() {
   return window.PublicKeyCredential !== undefined;
 }
 
-// --- Badge ---
+// --- Badge: check BOTH WebAuthn and Selfie ---
 async function checkBioStatus() {
+  let webAuthnOk = false;
+  let selfieOk = false;
+
   if (isWebAuthnSupported()) {
-    const data = await apiCall(CONFIG.webhooks.bioChallenge, { employeeId: state.employeeId });
-    state = { ...state, bioRegistered: data.success === true };
-  } else {
-    const data = await apiCall(CONFIG.webhooks.selfieVerify, { employeeId: state.employeeId, photo: 'check' });
-    state = { ...state, bioRegistered: data.hasSelfie === true };
+    try {
+      const data = await apiCall(CONFIG.webhooks.bioChallenge, { employeeId: state.employeeId });
+      webAuthnOk = data.success === true;
+    } catch (e) { /* ignore */ }
   }
+
+  try {
+    const selfieData = await apiCall(CONFIG.webhooks.selfieVerify, { employeeId: state.employeeId, photo: 'check' });
+    selfieOk = selfieData.hasSelfie === true;
+  } catch (e) { /* ignore */ }
+
+  const bioRegistered = webAuthnOk || selfieOk;
+  const bioMethod = webAuthnOk ? 'webauthn' : selfieOk ? 'selfie' : null;
+
+  state = { ...state, bioRegistered, bioMethod };
   updateBioBadge();
-  return state.bioRegistered;
+  return bioRegistered;
 }
 
 function updateBioBadge() {
   const badge = document.getElementById('bio-status-badge');
   if (state.bioRegistered) {
     badge.className = 'bio-badge active';
-    badge.textContent = isWebAuthnSupported() ? '🔒 Visage enregistré ✓' : '📸 Selfie enregistré ✓';
+    badge.textContent = state.bioMethod === 'webauthn' ? '🔒 Visage enregistré ✓' : '📸 Selfie enregistré ✓';
   } else {
     badge.className = 'bio-badge';
-    badge.textContent = isWebAuthnSupported() ? '🔒 Visage requis' : '📸 Selfie requis';
+    badge.textContent = '🔓 Visage requis';
   }
 }
 
@@ -91,7 +103,7 @@ async function registerWebAuthn() {
     });
 
     if (saveData.success) {
-      state = { ...state, bioRegistered: true };
+      state = { ...state, bioRegistered: true, bioMethod: 'webauthn' };
       updateBioBadge();
       showToast('success', '✅ Visage enregistré', 'Votre visage est lié à votre compte.');
       return true;
@@ -101,7 +113,6 @@ async function registerWebAuthn() {
   } catch (e) {
     hideLoading();
     console.error("WebAuthn Registration Error:", e);
-    showToast('error', 'Biométrie', 'Enregistrement du visage annulé ou échoué.');
     return false;
   }
 }
@@ -118,13 +129,6 @@ async function verifyWebAuthn(pointageType) {
 
     if (!challengeData.success) {
       hideLoading();
-      if (challengeData.error && challengeData.error.includes('aucune clé')) {
-        state = { ...state, bioRegistered: false };
-        updateBioBadge();
-        showToast('warning', 'Visage non trouvé', 'Enregistrez votre visage d\'abord.');
-        return await registerWebAuthn();
-      }
-      showToast('error', 'Erreur', challengeData.error || 'Échec du challenge');
       return false;
     }
 
@@ -177,7 +181,6 @@ async function verifyWebAuthn(pointageType) {
   } catch (e) {
     hideLoading();
     console.error("WebAuthn Verification Error:", e);
-    showToast('error', 'Biométrie', 'Vérification annulée ou échouée.');
     return false;
   }
 }
@@ -243,7 +246,7 @@ async function registerSelfie() {
     hideLoading();
 
     if (data.success) {
-      state = { ...state, bioRegistered: true };
+      state = { ...state, bioRegistered: true, bioMethod: 'selfie' };
       updateBioBadge();
       showToast('success', '📸 Selfie enregistré', 'Votre visage est lié à votre compte.');
       return true;
@@ -307,7 +310,7 @@ async function verifySelfie(pointageType) {
   }
 }
 
-// ===== MAIN TRIGGER (WebAuthn ou Selfie) =====
+// ===== MAIN: try WebAuthn first, fallback Selfie =====
 async function triggerBiometrics() {
   if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
     showToast('warning', 'HTTPS requis', 'Activez HTTPS pour utiliser la biométrie.');
@@ -315,8 +318,10 @@ async function triggerBiometrics() {
   }
 
   if (isWebAuthnSupported()) {
-    return await registerWebAuthn();
+    const ok = await registerWebAuthn();
+    if (ok) return true;
   }
+
   return await registerSelfie();
 }
 
@@ -326,8 +331,10 @@ async function verifyBiometrics(pointageType) {
     if (!enrolled) return false;
   }
 
-  if (isWebAuthnSupported()) {
-    return await verifyWebAuthn(pointageType);
+  if (state.bioMethod === 'webauthn' || (!state.bioMethod && isWebAuthnSupported())) {
+    const ok = await verifyWebAuthn(pointageType);
+    if (ok) return true;
   }
+
   return await verifySelfie(pointageType);
 }
